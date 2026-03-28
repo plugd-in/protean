@@ -700,7 +700,7 @@ impl<'d> DataCell<'d> {
     ///
     /// **Note:** [f64] is not returned as f32, due to differences in precision.
     /// Likewise, integers greater than 16 bits will generally not be returned
-    /// as an f32 due to gaps. So, `255u32` will be returned, but
+    /// as an [f32] due to gaps. So, `255u32` will be returned, but
     /// [u32::MAX] will not be returned as it exceeds [u16::MAX].
     pub fn try_as_f32(&self) -> Option<f32> {
         match self {
@@ -738,9 +738,9 @@ impl<'d> DataCell<'d> {
     /// or if this is another number type that can be losslessly represented
     /// as an [f64].
     ///
-    /// **Note:** Integers greater than 16 bits will generally not be
-    /// returned as an [f32] due to gaps. So, `255u32` will be returned, but
-    /// [u32::MAX] will not be returned as it exceeds [u16::MAX].
+    /// **Note:** Integers greater than 32 bits will generally not be
+    /// returned as an [f64] due to gaps. So, `255u64` will be returned, but
+    /// [u64::MAX] will not be returned as it exceeds [u32::MAX].
     pub fn try_as_f64(&self) -> Option<f64> {
         match self {
             Self::Float32(num) => Some(f64::from(*num)),
