@@ -8,6 +8,28 @@
 //! **Note:** A lot of serialization formats are not "self-describing"
 //! and commonly use integer discriminants for enum variants. This
 //! `crate` will make sure to never reorder variants.
+//!
+//! ## Example
+//! ```
+//! use protean::DataCell;
+//!
+//! let float_number = DataCell::f32(255.0);
+//! let as_int = float_number.try_as_u8().expect("Float as number...");
+//! assert_eq!(as_int, 255u8);
+//!
+//! // Floats above ~16.7 million cannot be safely
+//! // represented as an int, which we catch.
+//! let high_float_number = DataCell::f32(17_000_000.0);
+//! assert_eq!(high_float_number.try_as_u32(), None);
+//! // ... but it does work for f64:
+//! let high_float_number = DataCell::f64(17_000_000.0);
+//! assert_eq!(high_float_number.try_as_u32(), Some(17_000_000));
+//!
+//! // Integers can also be safely converted to floats
+//! // if they fit without precision loss.
+//! let int_number = DataCell::u32(2_930);
+//! assert_eq!(int_number.try_as_f32(), Some(2_930.0));
+//! ```
 
 #[cfg(test)]
 use assert_order::VariantOrder;

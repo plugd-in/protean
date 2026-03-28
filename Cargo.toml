@@ -4,9 +4,10 @@ description = "A flexible data enum guaranteeing strict variant ordering for bac
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
-authors = ["Reynaldo Bontje <rey.bontje80@gmail.com>"]
 license = "MIT"
 keywords = ["container", "zero-copy", "data-types", "serialization"]
+categories = ["data-structures", "encoding"]
+authors = ["Reynaldo Bontje <rey.bontje80@gmail.com>"]
 repository = "https://github.com/plugd-in/protean"
 
 [dependencies]
