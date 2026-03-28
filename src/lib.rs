@@ -29,6 +29,12 @@
 //! // if they fit without precision loss.
 //! let int_number = DataCell::u32(2_930);
 //! assert_eq!(int_number.try_as_f32(), Some(2_930.0));
+//!
+//! // Again, precision starts to fall off around 16.7 million:
+//! let high_int_number = DataCell::u32(17_000_000);
+//! assert_eq!(high_int_number.try_as_f32(), None);
+//! // ... but works for f64:
+//! assert_eq!(high_int_number.try_as_f64(), Some(17_000_000.0));
 //! ```
 
 #[cfg(test)]
@@ -721,23 +727,72 @@ impl<'d> DataCell<'d> {
     /// as an [f32].
     ///
     /// **Note:** [f64] is not returned as f32, due to differences in precision.
-    /// Likewise, integers greater than 16 bits will generally not be returned
-    /// as an [f32] due to gaps. So, `255u32` will be returned, but
-    /// [u32::MAX] will not be returned as it exceeds [u16::MAX].
     pub fn try_as_f32(&self) -> Option<f32> {
         match self {
             Self::Float32(num) => Some(*num),
             Self::Float64(_num) => None,
             Self::Unsigned8(num) => Some(f32::from(*num)),
             Self::Unsigned16(num) => Some(f32::from(*num)),
-            Self::Unsigned32(num) => u16::try_from(*num).ok().map(f32::from),
-            Self::Unsigned64(num) => u16::try_from(*num).ok().map(f32::from),
-            Self::Unsigned128(num) => u16::try_from(*num).ok().map(f32::from),
+            Self::Unsigned32(num) => {
+                let num = i32::try_from(*num).ok()?;
+
+                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
+            Self::Unsigned64(num) => {
+                let num = i32::try_from(*num).ok()?;
+
+                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
+            Self::Unsigned128(num) => {
+                let num = i32::try_from(*num).ok()?;
+
+                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
             Self::Signed8(num) => Some(f32::from(*num)),
             Self::Signed16(num) => Some(f32::from(*num)),
-            Self::Signed32(num) => i16::try_from(*num).ok().map(f32::from),
-            Self::Signed64(num) => i16::try_from(*num).ok().map(f32::from),
-            Self::Signed128(num) => i16::try_from(*num).ok().map(f32::from),
+            Self::Signed32(num) => {
+                let num = *num;
+
+                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
+            Self::Signed64(num) => {
+                let num = *num;
+
+                if num >= i64::from(F32_MIN_EXACT_INTEGER)
+                    && num <= i64::from(F32_MAX_EXACT_INTEGER)
+                {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
+            Self::Signed128(num) => {
+                let num = *num;
+
+                if num >= i128::from(F32_MIN_EXACT_INTEGER)
+                    && num <= i128::from(F32_MAX_EXACT_INTEGER)
+                {
+                    Some(num as f32)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -759,10 +814,6 @@ impl<'d> DataCell<'d> {
     /// Returns [Some] if this is a [Float64](DataCell::Float64) variant
     /// or if this is another number type that can be losslessly represented
     /// as an [f64].
-    ///
-    /// **Note:** Integers greater than 32 bits will generally not be
-    /// returned as an [f64] due to gaps. So, `255u64` will be returned, but
-    /// [u64::MAX] will not be returned as it exceeds [u32::MAX].
     pub fn try_as_f64(&self) -> Option<f64> {
         match self {
             Self::Float32(num) => Some(f64::from(*num)),
@@ -770,13 +821,47 @@ impl<'d> DataCell<'d> {
             Self::Unsigned8(num) => Some(f64::from(*num)),
             Self::Unsigned16(num) => Some(f64::from(*num)),
             Self::Unsigned32(num) => Some(f64::from(*num)),
-            Self::Unsigned64(num) => u32::try_from(*num).ok().map(f64::from),
-            Self::Unsigned128(num) => u32::try_from(*num).ok().map(f64::from),
+            Self::Unsigned64(num) => {
+                let num = i64::try_from(*num).ok()?;
+
+                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                    Some(num as f64)
+                } else {
+                    None
+                }
+            }
+            Self::Unsigned128(num) => {
+                let num = i64::try_from(*num).ok()?;
+
+                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                    Some(num as f64)
+                } else {
+                    None
+                }
+            }
             Self::Signed8(num) => Some(f64::from(*num)),
             Self::Signed16(num) => Some(f64::from(*num)),
             Self::Signed32(num) => Some(f64::from(*num)),
-            Self::Signed64(num) => i32::try_from(*num).ok().map(f64::from),
-            Self::Signed128(num) => i32::try_from(*num).ok().map(f64::from),
+            Self::Signed64(num) => {
+                let num = *num;
+
+                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                    Some(num as f64)
+                } else {
+                    None
+                }
+            }
+            Self::Signed128(num) => {
+                let num = *num;
+
+                if num >= i128::from(F64_MIN_EXACT_INTEGER)
+                    && num <= i128::from(F64_MAX_EXACT_INTEGER)
+                {
+                    Some(num as f64)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
