@@ -1,0 +1,16 @@
+[package]
+name = "protean"
+description = "A flexible data enum guaranteeing strict variant ordering for backward-compatible binary serialization."
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["Reynaldo Bontje <rey.bontje80@gmail.com>"]
+license = "MIT"
+keywords = ["container", "zero-copy", "data-types", "serialization"]
+repository = "https://github.com/plugd-in/protean"
+
+[dependencies]
+serde = { version = "1.0", optional = true, features = ["derive"] }
+
+[dev-dependencies]
+assert-order = "0.0.3"
