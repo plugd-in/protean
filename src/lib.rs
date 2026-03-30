@@ -9,7 +9,34 @@
 //! and commonly use integer discriminants for enum variants. This
 //! `crate` will make sure to never reorder variants.
 //!
-//! ## Example
+//! ## Owned Example
+//! The `protean` crate supports borrowing from owned data (like a `Vec<u8>`)
+//! without copying or cloning.
+//!
+//! ```
+//! use std::sync::Arc;
+//! use protean::{DataCell, OwnedDataCell};
+//!
+//! let buffer = Vec::from(b"Hello, world!");
+//! let data = OwnedDataCell::build(
+//!     buffer,
+//!     // We could also deserialize from the buffer using serde...
+//!     |bytes| DataCell::text(str::from_utf8(bytes).unwrap()),
+//! );
+//!
+//! assert_eq!(data.as_text(), Some("Hello, world!"));
+//!
+//! // You can also use helper methods to build DataCell
+//! // variants from owned data...
+//! let data = OwnedDataCell::text("Hello, world!");
+//! assert_eq!(data.as_text(), Some("Hello, world!"));
+//!
+//! let data = OwnedDataCell::bytes(Arc::from(*b"Hello, world!"));
+//! assert_eq!(data.as_bytes(), Some(&b"Hello, world!"[..]));
+//! ```
+//!
+//! ## Conversion Example
+//!
 //! ```
 //! use protean::DataCell;
 //!
@@ -41,6 +68,15 @@
 use assert_order::VariantOrder;
 use std::borrow::Cow;
 
+#[cfg(feature = "owned")]
+use yoke::Yokeable;
+
+#[cfg(feature = "owned")]
+mod owned;
+
+#[cfg(feature = "owned")]
+pub use owned::OwnedDataCell;
+
 const F32_MAX_EXACT_INTEGER: i32 = (1 << f32::MANTISSA_DIGITS) - 1;
 const F32_MIN_EXACT_INTEGER: i32 = -F32_MAX_EXACT_INTEGER;
 
@@ -52,6 +88,7 @@ const F64_MIN_EXACT_INTEGER: i64 = -F64_MAX_EXACT_INTEGER;
 // * **NEVER remove variants.**
 // * **ALWAYS add new variants at the END.**
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "owned", derive(Yokeable))]
 #[cfg_attr(test, derive(VariantOrder))]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -83,6 +120,13 @@ pub enum DataCell<'d> {
     /* --- Floats --- */
     Float32(f32),
     Float64(f64),
+}
+
+#[cfg(feature = "owned")]
+impl<B> PartialEq<owned::OwnedDataCell<B>> for DataCell<'_> {
+    fn eq(&self, other: &owned::OwnedDataCell<B>) -> bool {
+        self == other.yoke.get()
+    }
 }
 
 impl<'d> DataCell<'d> {
@@ -135,7 +179,7 @@ impl<'d> DataCell<'d> {
     pub fn try_as_text(&self) -> Option<&str> {
         match self {
             Self::Text(text) => Some(text),
-            Self::Bytes(bytes) => str::from_utf8(bytes).ok(),
+            Self::Bytes(bytes) => std::str::from_utf8(bytes).ok(),
             _ => None,
         }
     }
@@ -197,7 +241,7 @@ impl<'d> DataCell<'d> {
             Self::Float32(num) => {
                 let num = *num;
 
-                if num >= 0.0 && num <= 255.0 && num.trunc() == num {
+                if (0.0..=255.0).contains(&num) && num.trunc() == num {
                     Some(num as u8)
                 } else {
                     None
@@ -206,7 +250,7 @@ impl<'d> DataCell<'d> {
             Self::Float64(num) => {
                 let num = *num;
 
-                if num >= 0.0 && num <= 255.0 && num.trunc() == num {
+                if (0.0..=255.0).contains(&num) && num.trunc() == num {
                     Some(num as u8)
                 } else {
                     None
@@ -504,7 +548,7 @@ impl<'d> DataCell<'d> {
             Self::Signed32(num) => i16::try_from(*num).ok(),
             Self::Signed64(num) => i16::try_from(*num).ok(),
             Self::Signed128(num) => i16::try_from(*num).ok(),
-            Self::Unsigned8(num) => i16::try_from(*num).ok(),
+            Self::Unsigned8(num) => Some(i16::from(*num)),
             Self::Unsigned16(num) => i16::try_from(*num).ok(),
             Self::Unsigned32(num) => i16::try_from(*num).ok(),
             Self::Unsigned64(num) => i16::try_from(*num).ok(),
@@ -558,8 +602,8 @@ impl<'d> DataCell<'d> {
             Self::Signed32(num) => Some(*num),
             Self::Signed64(num) => i32::try_from(*num).ok(),
             Self::Signed128(num) => i32::try_from(*num).ok(),
-            Self::Unsigned8(num) => i32::try_from(*num).ok(),
-            Self::Unsigned16(num) => i32::try_from(*num).ok(),
+            Self::Unsigned8(num) => Some(i32::from(*num)),
+            Self::Unsigned16(num) => Some(i32::from(*num)),
             Self::Unsigned32(num) => i32::try_from(*num).ok(),
             Self::Unsigned64(num) => i32::try_from(*num).ok(),
             Self::Unsigned128(num) => i32::try_from(*num).ok(),
@@ -615,9 +659,9 @@ impl<'d> DataCell<'d> {
             Self::Signed32(num) => Some(*num as i64),
             Self::Signed64(num) => Some(*num),
             Self::Signed128(num) => i64::try_from(*num).ok(),
-            Self::Unsigned8(num) => i64::try_from(*num).ok(),
-            Self::Unsigned16(num) => i64::try_from(*num).ok(),
-            Self::Unsigned32(num) => i64::try_from(*num).ok(),
+            Self::Unsigned8(num) => Some(i64::from(*num)),
+            Self::Unsigned16(num) => Some(i64::from(*num)),
+            Self::Unsigned32(num) => Some(i64::from(*num)),
             Self::Unsigned64(num) => i64::try_from(*num).ok(),
             Self::Unsigned128(num) => i64::try_from(*num).ok(),
             Self::Float32(num) => {
@@ -675,10 +719,10 @@ impl<'d> DataCell<'d> {
             Self::Signed32(num) => Some(*num as i128),
             Self::Signed64(num) => Some(*num as i128),
             Self::Signed128(num) => Some(*num),
-            Self::Unsigned8(num) => i128::try_from(*num).ok(),
-            Self::Unsigned16(num) => i128::try_from(*num).ok(),
-            Self::Unsigned32(num) => i128::try_from(*num).ok(),
-            Self::Unsigned64(num) => i128::try_from(*num).ok(),
+            Self::Unsigned8(num) => Some(i128::from(*num)),
+            Self::Unsigned16(num) => Some(i128::from(*num)),
+            Self::Unsigned32(num) => Some(i128::from(*num)),
+            Self::Unsigned64(num) => Some(i128::from(*num)),
             Self::Unsigned128(num) => i128::try_from(*num).ok(),
             Self::Float32(num) => {
                 let num = *num;
@@ -736,7 +780,7 @@ impl<'d> DataCell<'d> {
             Self::Unsigned32(num) => {
                 let num = i32::try_from(*num).ok()?;
 
-                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                if (F32_MIN_EXACT_INTEGER..=F32_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f32)
                 } else {
                     None
@@ -745,7 +789,7 @@ impl<'d> DataCell<'d> {
             Self::Unsigned64(num) => {
                 let num = i32::try_from(*num).ok()?;
 
-                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                if (F32_MIN_EXACT_INTEGER..=F32_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f32)
                 } else {
                     None
@@ -754,7 +798,7 @@ impl<'d> DataCell<'d> {
             Self::Unsigned128(num) => {
                 let num = i32::try_from(*num).ok()?;
 
-                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                if (F32_MIN_EXACT_INTEGER..=F32_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f32)
                 } else {
                     None
@@ -765,7 +809,7 @@ impl<'d> DataCell<'d> {
             Self::Signed32(num) => {
                 let num = *num;
 
-                if num >= F32_MIN_EXACT_INTEGER && num <= F32_MAX_EXACT_INTEGER {
+                if (F32_MIN_EXACT_INTEGER..=F32_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f32)
                 } else {
                     None
@@ -824,7 +868,7 @@ impl<'d> DataCell<'d> {
             Self::Unsigned64(num) => {
                 let num = i64::try_from(*num).ok()?;
 
-                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                if (F64_MIN_EXACT_INTEGER..=F64_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f64)
                 } else {
                     None
@@ -833,7 +877,7 @@ impl<'d> DataCell<'d> {
             Self::Unsigned128(num) => {
                 let num = i64::try_from(*num).ok()?;
 
-                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                if (F64_MIN_EXACT_INTEGER..=F64_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f64)
                 } else {
                     None
@@ -845,7 +889,7 @@ impl<'d> DataCell<'d> {
             Self::Signed64(num) => {
                 let num = *num;
 
-                if num >= F64_MIN_EXACT_INTEGER && num <= F64_MAX_EXACT_INTEGER {
+                if (F64_MIN_EXACT_INTEGER..=F64_MAX_EXACT_INTEGER).contains(&num) {
                     Some(num as f64)
                 } else {
                     None
