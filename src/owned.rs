@@ -437,6 +437,11 @@ impl<B> OwnedDataCell<B> {
         }
     }
 
+    /// Get a borrowed view of the datacell.
+    pub fn borrowed(&self) -> &DataCell<'_> {
+        self.yoke.get()
+    }
+
     pub fn empty() -> Self {
         let yoke = Yoke::new_owned(DataCell::empty());
 
